@@ -1,16 +1,58 @@
-let customTheme = (hex)=>{
-    let t = /([0-9abcdef#]+)/.exec(hex);
+try {for (i in customBtns) { customBtns[i].remove() }}catch(e){}
+if (typeof localStorage["customTheme"] == 'undefined') {localStorage["customTheme"] = JSON.stringify({})}
+
+let customBtns = []
+
+let pageLoad = (c) =>{ if (typeof c !== 'function') return; let a = new MutationObserver((mutationsList) => { let b = 0; for (const mutation of mutationsList) { if (mutation.type === 'childList' && b == 0) { mutation.addedNodes.forEach((node) => { if (node.nodeType === Node.ELEMENT_NODE) { b = 1; a.disconnect(); c(); } }); } } }); a.observe(findC("main"),{childList: true,subtree: true}) }
+const hexToHSL = (hex)=> { let r = 0, g = 0, b = 0; if (hex.length == 4) { r = "0x" + hex[1] + hex[1]; g = "0x" + hex[2] + hex[2]; b = "0x" + hex[3] + hex[3]; } else if (hex.length == 7) { r = "0x" + hex[1] + hex[2]; g = "0x" + hex[3] + hex[4]; b = "0x" + hex[5] + hex[6]; } r /= 255; g /= 255; b /= 255; let max = Math.max(r, g, b), min = Math.min(r, g, b); let h, s, l = (max + min) / 2; if (max == min) { h = s = 0; } else { let d = max - min; s = l > 0.5 ? d / (2 - max - min) : d / (max + min); switch (max) { case r: h = (g - b) / d + (g < b ? 6 : 0); break; case g: h = (b - r) / d + 2; break; case b: h = (r - g) / d + 4; break; } h /= 6; } h = Math.round(h * 360); s = Math.round(s * 100); l = Math.round(l * 100); return [h, s, l]; }
+const getPage = ()=>{return(window.location.hash).replace("#","")}
+
+String.prototype.isHex = function(){
+    let a = /([0-9a-f#]+)/.exec(this);
+    return a[0].length == this.length;
+}
+
+let changeTheme = (s={})=>{
+    let a = JSON.parse(localStorage["customTheme"]);
+    let b = Object.keys(s);
+    for (i in b) {
+        let n = b[i];
+        a[n] = s[n];
+    }
+    localStorage["customTheme"] = JSON.stringify(a);
+}
+
+let getTheme = ()=>{
+    return JSON.parse(localStorage["customTheme"]);
+}
+
+if (localStorage["themeHex"]) {
+    let c = (getTheme().mode ? getTheme().mode : false);
+    changeTheme({hex:localStorage["themeHex"],mode:(c ? getTheme().mode : false)})
+    delete localStorage["themeHex"]
+}
+
+let customTheme = (hex,light)=>{
+    let t = hex.isHex();
     if (!t){return showPopUp("Error Changing Theme", `Invalid hex code.`, [["Back", "grey", null]])}
     if (typeof t == "object" && t[0].length !== hex.length){return showPopUp("Error Changing Theme", `Invalid hex code.`, [["Back", "grey", null]])}
-    const hexToHSL = (hex)=> { let r = 0, g = 0, b = 0; if (hex.length == 4) { r = "0x" + hex[1] + hex[1]; g = "0x" + hex[2] + hex[2]; b = "0x" + hex[3] + hex[3]; } else if (hex.length == 7) { r = "0x" + hex[1] + hex[2]; g = "0x" + hex[3] + hex[4]; b = "0x" + hex[5] + hex[6]; } r /= 255; g /= 255; b /= 255; let max = Math.max(r, g, b), min = Math.min(r, g, b); let h, s, l = (max + min) / 2; if (max == min) { h = s = 0; } else { let d = max - min; s = l > 0.5 ? d / (2 - max - min) : d / (max + min); switch (max) { case r: h = (g - b) / d + (g < b ? 6 : 0); break; case g: h = (b - r) / d + 2; break; case b: h = (r - g) / d + 4; break; } h /= 6; } h = Math.round(h * 360); s = Math.round(s * 100); l = Math.round(l * 100); return [h, s, l]; }
-    hex = (hex[0] !== "#") ? (`#${hex.replaceAll("#","")}`) : hex;
+    hex = `#${hex.replaceAll("#","")}`
     let theme = [hexToHSL(hex),hexToHSL(hex),hexToHSL(hex),hexToHSL(hex),hexToHSL(hex),hexToHSL(hex)]
-    theme[0][2] = 8
-    theme[1][2] = 11
-    theme[2][2] = 14
-    theme[3][2] = 19
-    theme[4][2] = 69
-    theme[5][2] = 15
+    if (light) {
+        theme[0][2] = 90
+        theme[1][2] = 88
+        theme[2][2] = 86
+        theme[3][2] = 82
+        theme[4][2] = 69
+        theme[5][2] = 87
+    } else {
+        theme[0][2] = 8
+        theme[1][2] = 11
+        theme[2][2] = 14
+        theme[3][2] = 19
+        theme[4][2] = 69
+        theme[5][2] = 15
+    }
 
     for (i in theme) {
         theme[i][1] = `${theme[i][1]}%`
@@ -23,10 +65,9 @@ let customTheme = (hex)=>{
     setCSSVar("--contentColor", `hsl(${theme[1].join(", ")})`);
     setCSSVar("--contentColor2", `hsl(${theme[2].join(", ")})`);
     setCSSVar("--contentColor3", `hsl(${theme[3].join(", ")})`);
-    setCSSVar("--fontColor", "#ffffff");
+    setCSSVar("--fontColor", (light ? "#000000" : "#ffffff"));
     setCSSVar("--themeColor", `hsl(${theme[4].join(", ")})`);
-
-    localStorage["themeHex"] = hex;
+    changeTheme({hex:hex})
 }
 
 const createButton = (n,i,s,p)=>{
@@ -40,6 +81,7 @@ const createButton = (n,i,s,p)=>{
     ele.className = "sidebarButton";
     ele.innerHTML = `<div class="sidebarButtonImg">${i}</div>${n}`
     findI("sidebarButtons").insertBefore(ele,prem)
+    customBtns.push(ele)
 }
 
 let formatOptions = [
@@ -153,6 +195,15 @@ let formatOptions = [
     };
   fe = new bb(false);
   newPostRender = new bb(true);
+
+let pc = {}
+function addCodeToPage(page,c) {
+    if (pages[page] == undefined) return;
+    let p = (pc[page] ? pc[page].code : `${pages[page]}`)
+    v = (`${pages.settings}`.slice(0,p.length-1) + c+"}").replace("function","function settingsPage")
+    pc[page] = {code:v}
+    pages.settings = ()=>{eval(pc[page]);settingsPage()}
+}
   
 createElement("","style",document.head).innerHTML = 
 `#spoiler {
@@ -174,9 +225,29 @@ createElement("","style",document.head).innerHTML =
 .settingsButton {
     margin: 9px 3px 0px 3px;
 }
+
+select {
+  background: var(--contentColor2);
+  width: 100%;
+  border: none;
+  border-radius: 8px;
+  box-sizing: border-box;
+  color: var(--fontColor);
+  font-family: var(--mainFont);
+  font-weight: bold;
+  font-size: 16px;
+  height: 32px;
+  padding: 4px;
+  margin-top: 6px;
+}
+
+option {
+    background: var(--contentColor1);
+}
+
 `
 
-createButton("Messages",`<svg viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg">
+createButton("Messages",`<svg viewBox="0 0 256 256" fill="none" xmlns="http:www.w3.org/2000/svg">
               <rect x="-10" y="10" width="203.976" height="62.755" rx="31.3775" transform="matrix(-1 0 0 1 217.976 21)" stroke="var(--themeColor)" stroke-width="20"/>
               <path d="M238.758 108.748L228.062 77.8583C226.738 74.0347 221.657 73.2854 219.286 76.564L206.321 94.4879C204.558 96.9256 205.331 100.357 207.97 101.803L231.63 114.769C235.642 116.967 240.255 113.071 238.758 108.748Z" fill="var(--themeColor)"/>
               <rect x="27.0237" y="144" width="203.976" height="62.7549" rx="31.3775" stroke="var(--themeColor)" stroke-width="20"/>
@@ -188,30 +259,36 @@ createButton("Client",`<svg viewBox="0 0 256 256" fill="none" xmlns="http://www.
 decideProfilePic({})
 
 pages.client = ()=>{
-    const settingSections = []
-    let n;
-    const mss = ()=>{
-        settingSections.push(createElement("settingsSection","div",findC("pageHolder")));
-    }
-    mss();
+    let ph = findC("pageHolder")
+    let header = createElement("","h1",ph)
+    header.innerText = "SiriClient™ V1 😂"
+    header.style.fontSize = "75px"
+    header.style.textAlign = "center"
     
-    createElement("settingsTitle","div",settingSections[0]).innerText = "Theme";
+    let n = createElement("","p",ph)
+    n.innerText = "there's nun 😔"
+    n.style.textAlign = "center"
     
-    n = createElement("settingsInput","input",settingSections[0]);
-    n.placeholder = "#BF00FF";
-    n.id = "themeInput";
+    //<h1 style="font-size: 100px;text-align: center;">hi</h1>
+    // const settingSections = []
+    // let n;
+    // const mss = ()=>{
+    //     settingSections.push(createElement("settingsSection","div",findC("pageHolder")));
+    // }
+    // mss();
     
-    n = createElement("settingsButton","button",settingSections[0]);
-    n.innerText = "Save";
-    n.id = "saveTheme";
-    n.onclick = ()=>{customTheme(findI('themeInput').value)}
-    console.log(n)
-
-    n = createElement("settingsButton","button",settingSections[0]);
-    n.innerText = "Reset";
-    n.id = "resetTheme";
-    n.onclick = ()=>{updateDisplay(account.Settings.Display.Theme);delete localStorage["themeHex"];}
-    console.log(n)
+    // createElement("settingsTitle","div",settingSections[0]).innerText = "Theme";
+    
+    // n = createElement("settingsInput","input",settingSections[0]);
+    // n.placeholder = "#BF00FF";
+    // n.id = "themeInput";
+    
+    // n = createElement("settingsButton","button",settingSections[0]);
+    // n.innerText = "Save";
+    // n.id = "saveTheme";
+    // n.onclick = ()=>{customTheme(findI('themeInput').value)}
+    
+    // console.log(n)
 
     //updateDisplay(account.Settings.Display.Theme)
 }
@@ -248,61 +325,426 @@ let extraButton = setInterval(()=>{
     }
 },100)
 
-// REDEFINED FUNCTIONS ZONE
-
-function updateBackdrop(imageID) {
-    if (imageID != null && hasPremium()) {
-      findI("backdrop").style.backgroundImage = `url("https://photop-content.s3.amazonaws.com/Backdrops/${imageID}")`;
-      findI("backdrop").style.opacity = 0.3;
-    } else {
-      findI("backdrop").style.opacity = 0;
+function addCodeToPage(page,c) {
+    const flios = (m, s)=>{return m.lastIndexOf(s);}
+    if (pages[page] == undefined) return;
+    let p = (pc[page] ? pc[page].code : `${pages[page]}`)
+    let n = (pc[page] ? flios(p,page)-3 : p.length-1)
+    //.replace("function",`function ${fn}`)
+    let fn = `${page}Page`
+    let v = (p.slice(0,n) + c+`}; ${fn}()`)
+    if (pc[page] == undefined) {
+        v = v.replace("function",`function ${fn}`)
     }
-    if (localStorage["themeHex"]) {
-      customTheme(localStorage["themeHex"])
-    }
+    pc[page] = {code:v}
+    pages[page] = ()=>{eval(pc[page].code)}
 }
 
-function addThemeOption(index) {
-    if (themes[index][0] == "/section") {
-      let thisSection = createElement("settingsTitle", "div", findI("themeSelector"));
-      thisSection.innerText = themes[index][1];
+// REDEFINED FUNCTIONS ZONE
+
+async function setPage(name) {
+  let loadedPage = currentPage;
+  currentPage = name;
+  app.style.width = "850px";
+  if (loadedPage != name) {
+    pageHolder.innerHTML = "";
+  }
+  removeTempListeners();
+  for (let i = 0; i < subscribes.length; i++) {
+    subscribes[i].close();
+  }
+  subscribes = [];
+  if (window.closeMobileChat != null) {
+    closeMobileChat();
+  }
+  if (wireframes[name] == null) {
+    if (currentlyLoadingPages[name] != null) {
       return;
     }
-    let thisThemeOption = createElement("themeOption", "div", findI("themeSelector"));
-    if (themes[index][1] == "Snowtop") {
-      thisThemeOption.style.backgroundImage = "url(https://app.photop.live/Images/Holidays/FunSnowPile.png)";
-      thisThemeOption.style.backgroundSize = "cover";
-      thisThemeOption.style.backgroundColor = "#151617";
-    } else if (themes[index][1] == "NewYear") {
-      thisThemeOption.style.backgroundImage = "url(https://app.photop.live/Images/Holidays/fireworkParticle2.png)";
-      thisThemeOption.style.backgroundSize = "cover";
-      thisThemeOption.style.backgroundColor = "#151617";
-    } else {
-      thisThemeOption.style.background = themes[index][1];
+    currentlyLoadingPages[name] = "";
+    await loadScript("./pages/" + name + ".js");
+    delete currentlyLoadingPages[name];
+  }
+  if (name != "home" || loadedPage != name) {
+    pageHolder.innerHTML = wireframes[name];
+  }
+  if (pages[name] != null) {
+    window.location.hash = "#" + name;
+    switch (name){
+      case "settings":
+        if (typeof pc.settings !== 'undefined') break;
+        let c = `
+        if(!(themes.join().includes("Client") && themes.join().includes("Custom"))){
+            themes.push(["/section","Client"]);
+            themes.push(["Custom","var(--contentColor2)"]);
+        }
+        
+        function addThemeOption(index) {
+            const cto = ()=>{
+              div = createElement("tempDiv","div",findI("themeSelector"))
+                      
+              n = createElement("settingsInput","input",findC("tempDiv"));
+              n.placeholder = "#BF00FF";
+              n.id = "themeInput";
+              n.value = getTheme().hex;
+              n.style.width = "80%"
+              
+              let d_id = "customThemeDropdown"
+              n = createElement("","select",findC("tempDiv"));
+              n.id = d_id
+              n.style.width = "80%"
+              p = createElement("","option",findI(d_id)).innerText = "Dark"
+              q = createElement("","option",findI(d_id)).innerText = "Light"
+              //findI(d_id).value
+        
+              n = createElement("settingsButton","button",findC("tempDiv"));
+              n.innerText = "Save";
+              n.id = "saveTheme";
+              n.onclick = ()=>{
+                let tInputVal = findI('themeInput').value;
+                let h = hexToHSL(tInputVal)
+                let c = (findI(d_id).value == "Light" ? true : false);
+                customTheme(tInputVal,c)
+                changeTheme({hex:tInputVal,mode:c})
+              }
+            }
+            
+            if (themes[index][0] == "/section") {
+              let thisSection = createElement("settingsTitle", "div", findI("themeSelector"));
+              thisSection.innerText = themes[index][1];
+              return;
+            }
+            let thisThemeOption = createElement("themeOption", "div", findI("themeSelector"));
+            if (themes[index][1] == "Snowtop") {
+              thisThemeOption.style.backgroundImage = "url(https://app.photop.live/Images/Holidays/FunSnowPile.png)";
+              thisThemeOption.style.backgroundSize = "cover";
+              thisThemeOption.style.backgroundColor = "#151617";
+            } else if (themes[index][1] == "NewYear") {
+              thisThemeOption.style.backgroundImage = "url(https://app.photop.live/Images/Holidays/fireworkParticle2.png)";
+              thisThemeOption.style.backgroundSize = "cover";
+              thisThemeOption.style.backgroundColor = "#151617";
+            } else {
+              thisThemeOption.style.background = themes[index][1];
+            }
+            thisThemeOption.title = themes[index][0];
+            if (account.Settings.Display.Theme == themes[index][0]) {
+              thisThemeOption.classList.add("themeSelected");
+            }
+            
+            //CLICK EVENT
+            
+            thisThemeOption.addEventListener("click", async function (e) {
+              let updatedSettings = account.Settings.Display;
+              updatedSettings.Theme = themes[index][0];
+              if (findC("themeSelected") != null) {
+                findC("themeSelected").classList.remove("themeSelected");
+              }
+              thisThemeOption.classList.add("themeSelected");
+              updateDisplay(updatedSettings.Theme)
+              let [code, response] = await sendRequest("POST", "me/settings", {
+                update: "display",
+                value: updatedSettings
+              });
+              if (code != 200) {
+                showPopUp("Error Updating Theme", response, [
+                  ["Okay", "var(--grayColor)"]
+                ]);
+                updateDisplay(account.Settings.Display.Theme)
+              }
+              try {findC("tempDiv").remove()}catch(e){}
+              switch (thisThemeOption.getAttribute("title")){
+                  case "Custom":
+                      cto()
+                      break;
+              }
+            });
+            
+            if (themes[index][0] == "Custom") {
+                  cto()
+            }
     }
-    thisThemeOption.title = themes[index][0];
-    if (account.Settings.Display.Theme == themes[index][0]) {
-      thisThemeOption.classList.add("themeSelected");
+`
+        addCodeToPage("settings",c)
+        break;
     }
-    thisThemeOption.addEventListener("click", async function () {
-      let updatedSettings = account.Settings.Display;
-      updatedSettings.Theme = themes[index][0];
-      if (findC("themeSelected") != null) {
-        findC("themeSelected").classList.remove("themeSelected");
-      }
-      thisThemeOption.classList.add("themeSelected");
-      updateDisplay(themes[index][0]);
-      let [code, response] = await sendRequest("POST", "me/settings", {
-        update: "display",
-        value: updatedSettings
-      });
-      if (code != 200) {
-        showPopUp("Error Updating Theme", response, [
-          ["Okay", "var(--grayColor)"]
-        ]);
-        updateDisplay(account.Settings.Display.Theme);
+    await pages[name]();
+    let title = name;
+    title = name.charAt(0).toUpperCase() + name.slice(1);
+    document.title = title + " | Photop";
+  }
+}
+//updateDisplay(account.Settings.Display.Theme)
+function updateDisplay(type) {
+  if (skyInt != null) {
+    clearInterval(skyInt);
+    skyInt = null;
+  }
+  setCSSVar("--sidebarBG", isMobile ? "var(--pageColor)" : "transparent");
+  switch (type) {
+    case "Custom":
+      customTheme(getTheme().hex,getTheme().mode)
+      break;
+    case "Light":
+      setCSSVar("--leftSidebarColor", "#E8E8E8");
+      setCSSVar("--pageColor", "#E6E9EB");
+      setCSSVar("--pageColor2", "var(--pageColor)");
+      setCSSVar("--contentColor", "#DFDFE6");
+      setCSSVar("--contentColor2", "#D9D9E4");
+      setCSSVar("--contentColor3", "#D2D2E0");
+      setCSSVar("--fontColor", "#000000");
+      setCSSVar("--themeColor", "#5AB7FA");
+      particles = null;
+      break;
+    /*
+    case "Pride":
+      setCSSVar("--leftSidebarColor", "#262630");
+      setCSSVar("--pageColor", "linear-gradient(to bottom, red, orange, yellow, green, blue, purple)");
+      setCSSVar("--contentColor", "#EBEBEB");
+      setCSSVar("--contentColor2", "#E3E3E3");
+      setCSSVar("--contentColor3", "#D9D9D9");
+      setCSSVar("--borderColor", "#323242");
+      setCSSVar("--fontColor", "black");
+      setCSSVar("--themeColor", "tomato");
+      break;
+      */
+    case "Hacker":
+      setCSSVar("--leftSidebarColor", "black");
+      setCSSVar("--pageColor", "black");
+      setCSSVar("--pageColor2", "var(--pageColor)");
+      setCSSVar("--contentColor", "black");
+      setCSSVar("--contentColor2", "black");
+      setCSSVar("--contentColor3", "black");
+      setCSSVar("--fontColor", "white");
+      setCSSVar("--themeColor", "lime");
+      particles = null;
+      break;
+    case "Blood Moon":
+      setCSSVar("--leftSidebarColor", "black");
+      setCSSVar("--pageColor", "linear-gradient(to bottom, #5c0701, black)");
+      setCSSVar("--pageColor2", "var(--pageColor)");
+      setCSSVar("--contentColor", "#831100");
+      setCSSVar("--contentColor2", "#942200");
+      setCSSVar("--contentColor3", "#a52300");
+      setCSSVar("--fontColor", "white");
+      setCSSVar("--themeColor", "tomato");
+      particles = null;
+      break;
+    case "Under The Sea":
+      setCSSVar("--leftSidebarColor", "black");
+      setCSSVar("--pageColor", "linear-gradient(to bottom, #4ecbef, #0062fe)");
+      setCSSVar("--pageColor2", "var(--pageColor)");
+      setCSSVar("--contentColor", "#0056d6");
+      setCSSVar("--contentColor2", "#0061fe");
+      setCSSVar("--contentColor3", "#3a87fe");
+      setCSSVar("--fontColor", "white");
+      setCSSVar("--themeColor", "#52d6fc");
+      particles = null;
+      break;
+    case "Bootop":
+      setCSSVar("--leftSidebarColor", "#262630");
+      setCSSVar("--pageColor", "#151617");
+      setCSSVar("--pageColor2", "var(--pageColor)");
+      setCSSVar("--contentColor", "#1f1f28");
+      setCSSVar("--contentColor2", "#24242e");
+      setCSSVar("--contentColor3", "#2a2a37");
+      setCSSVar("--fontColor", "#ffffff");
+      setCSSVar("--themeColor", "#eb6123");
+      particles = null;
+      break;
+    case "Snowtop":
+      setCSSVar("--leftSidebarColor", "#262630");
+      setCSSVar("--pageColor", "url('/Images/Holidays/FunSnowPile.png')");
+      setCSSVar("--pageColor2", "#151617");
+      if (isMobile) {
+        setCSSVar("--sidebarBG", "var(--pageColor2)");
       } else {
-          delete localStorage["themeHex"]
+        setCSSVar("--sidebarBG", "transparent");
       }
-    });
+      setCSSVar("--contentColor", "#1f1f28");
+      setCSSVar("--contentColor2", "#24242e");
+      setCSSVar("--contentColor3", "#2a2a37");
+      setCSSVar("--fontColor", "#ffffff");
+      setCSSVar("--themeColor", "#f13333");
+      particles = "snow";
+      document.body.classList.add('snowtop');
+      break;
+    case "Midnight Haze":
+      setCSSVar("--leftSidebarColor", "black");
+      setCSSVar("--pageColor", "linear-gradient(135deg, #0c1762, #650f9b, #780f31)");
+      setCSSVar("--pageColor2", "var(--pageColor)");
+      setCSSVar("--contentColor", "#1F1F59");
+      setCSSVar("--contentColor2", "#421f59");
+      setCSSVar("--contentColor3", "#611f59");
+      setCSSVar("--fontColor", "white");
+      setCSSVar("--themeColor", "#78ddd4");
+      particles = null;
+      break;
+    case "Moss Green":
+      setCSSVar("--leftSidebarColor", "black");
+      setCSSVar("--pageColor", "radial-gradient(ellipse at bottom, #658d65, #0d2c0a)");
+      setCSSVar("--pageColor2", "var(--pageColor)");
+      setCSSVar("--contentColor", "#334e33");
+      setCSSVar("--contentColor2", "#395839");
+      setCSSVar("--contentColor3", "#426042");
+      setCSSVar("--fontColor", "white");
+      setCSSVar("--themeColor", "#78dd8a");
+      particles = null;
+      break;
+    case "Ourple 😂":
+      setCSSVar("--leftSidebarColor", "black");
+      setCSSVar("--pageColor", "#4638a1");
+      setCSSVar("--pageColor2", "var(--pageColor)");
+      setCSSVar("--contentColor", "#5a4cb1");
+      setCSSVar("--contentColor2", "#6459ab");
+      setCSSVar("--contentColor3", "#6c62af");
+      setCSSVar("--fontColor", "white");
+      setCSSVar("--themeColor", "#bab3e9");
+      particles = null;
+      break;
+    case "Peachy Mist":
+      setCSSVar("--leftSidebarColor", "black");
+      setCSSVar("--pageColor", "linear-gradient(315deg, #f0b980, pink)");
+      setCSSVar("--pageColor2", "var(--pageColor)");
+      setCSSVar("--contentColor", "#f9e5e8");
+      setCSSVar("--contentColor2", "#f9dad7");
+      setCSSVar("--contentColor3", "#f3c2d4");
+      setCSSVar("--fontColor", "#46261b");
+      setCSSVar("--themeColor", "#ed3950");
+      particles = null;
+      break;
+    case "Faded":
+      setCSSVar("--leftSidebarColor", "black");
+      setCSSVar("--pageColor", "linear-gradient(295deg, #336264, #3a4048)");
+      setCSSVar("--pageColor2", "var(--pageColor)");
+      setCSSVar("--contentColor", "#497287");
+      setCSSVar("--contentColor2", "#5a8399");
+      setCSSVar("--contentColor3", "#6a91a5");
+      setCSSVar("--fontColor", "white");
+      setCSSVar("--themeColor", "#a9cfe9");
+      particles = null;
+      break;
+    case "Into the Light":
+      setCSSVar("--leftSidebarColor", "black");
+      setCSSVar("--pageColor", "radial-gradient(circle at 30% 70%, #fbe286, #4caed3)");
+      setCSSVar("--pageColor2", "var(--pageColor)");
+      setCSSVar("--contentColor", "#e9e8c2");
+      setCSSVar("--contentColor2", "#e3ddca");
+      setCSSVar("--contentColor3", "#d9d4c4");
+      setCSSVar("--fontColor", "#152c46");
+      setCSSVar("--themeColor", "#1199dd");
+      particles = null;
+      break;
+    case "Canyon":
+      setCSSVar("--leftSidebarColor", "black");
+      setCSSVar("--pageColor", "radial-gradient(ellipse at bottom, #d5610f, #581703)");
+      setCSSVar("--pageColor2", "var(--pageColor)");
+      setCSSVar("--contentColor", "#783715");
+      setCSSVar("--contentColor2", "#7c3d1c");
+      setCSSVar("--contentColor3", "#85401b");
+      setCSSVar("--fontColor", "white");
+      setCSSVar("--themeColor", "#e5986a");
+      particles = null;
+      break;
+    case "Spocco":
+      setCSSVar("--leftSidebarColor", "black");
+      setCSSVar("--pageColor", "linear-gradient(180deg, #ededed 20%, #bbb8b8 80%)");
+      setCSSVar("--pageColor2", "var(--pageColor)");
+      setCSSVar("--contentColor", "#f1f1f1");
+      setCSSVar("--contentColor2", "#ebedef");
+      setCSSVar("--contentColor3", "#dce3e9");
+      setCSSVar("--fontColor", "#242c32");
+      setCSSVar("--themeColor", "#0db7c1");
+      particles = null;
+      break;
+    case "Into the Night":
+      setCSSVar("--leftSidebarColor", "black");
+      setCSSVar("--pageColor", "radial-gradient(circle at 50% 20%, #3e5a72, #000)");
+      setCSSVar("--pageColor2", "var(--pageColor)");
+      setCSSVar("--contentColor", "#0b1218");
+      setCSSVar("--contentColor2", "#0d151c");
+      setCSSVar("--contentColor3", "#141f28");
+      setCSSVar("--fontColor", "white");
+      setCSSVar("--themeColor", "#758691");
+      particles = null;
+      break;
+    case "Sunset":
+      setCSSVar("--leftSidebarColor", "black");
+      setCSSVar("--pageColor", "radial-gradient(circle at 70% 100%, #ffeec8 -5%, #ed9437 5%, #ed9437 10%, #554cd3, #15055d)");
+      setCSSVar("--pageColor2", "var(--pageColor)");
+      setCSSVar("--contentColor", "#151547");
+      setCSSVar("--contentColor2", "#1c1c5b");
+      setCSSVar("--contentColor3", "#22225d");
+      setCSSVar("--fontColor", "white");
+      setCSSVar("--themeColor", "#37afed");
+      particles = null;
+      break;
+    case "Sky":
+      updateSky();
+      skyInt = setInterval(updateSky, 1000);
+      setCSSVar("--themeColor", "#3f51b5");
+      particles = null;
+      break;
+    case "New Year":
+      setCSSVar("--leftSidebarColor", "black");
+      setCSSVar("--pageColor", "radial-gradient(circle at 50% 20%, #3e5a72, #000)");
+      setCSSVar("--pageColor2", "var(--pageColor)");
+      setCSSVar("--contentColor", "#1f1f28");
+      setCSSVar("--contentColor2", "#24242e");
+      setCSSVar("--contentColor3", "#2a2a37");
+      setCSSVar("--fontColor", "#ffffff");
+      setCSSVar("--themeColor", "#5AB7FA");
+      particles = "fireworks";
+      break;
+    default:
+      setCSSVar("--leftSidebarColor", "#262630");
+      setCSSVar("--pageColor", "#151617");
+      setCSSVar("--pageColor2", "var(--pageColor)");
+      setCSSVar("--contentColor", "#1f1f28");
+      setCSSVar("--contentColor2", "#24242e");
+      setCSSVar("--contentColor3", "#2a2a37");
+      setCSSVar("--fontColor", "#ffffff");
+      setCSSVar("--themeColor", "#5AB7FA");
+      particles = null;
+      break;
+  }
+  clearInterval(particleInt);
+  switch (particles) {
+    case "snow":
+      function createParticle() {
+        if (!viewingTab) {
+          return;
+        }
+        let thisParticle = createElement("particle-snow", "div", findC("body"));
+        thisParticle.style.left = (Math.random()*100) + "%";
+        setTimeout(function () {
+          thisParticle.remove();
+        }, 15000);
+      }
+      particleInt = setInterval(createParticle, (isMobile ? 1500 : 500));
+      break;
+    case "fireworks":
+      function createParticle() {
+        if (!viewingTab) {
+          return;
+        }
+        let thisParticle = createElement("particle-fireworks1", "img", findC("body"));
+        thisParticle.src = "/Images/Holidays/fireworkParticle1.png";
+        thisParticle.style.left = (Math.random()*100) + "%";
+        if (Math.random() >= 0.1) {
+          thisParticle.style.zIndex = -999;
+        }
+        thisParticle.style.filter = "hue-rotate(" + (Math.floor(Math.random() * 360)) + "deg)";
+        setTimeout(function () {
+          thisParticle.classList.add("particle-fireworks2");
+          thisParticle.classList.remove("particle-fireworks1");
+          thisParticle.src = "/Images/Holidays/fireworkParticle2.png";
+          setTimeout(function () {
+            thisParticle.remove();
+          }, 750);
+        }, 3000);
+      }
+      createParticle();
+      particleInt = setInterval(createParticle, 1000);
+      break;
+  }
 }
