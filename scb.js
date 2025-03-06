@@ -1,19 +1,80 @@
+const devMode = true;
+
 try {for (i in customBtns) { customBtns[i].remove() }}catch(e){}
 if (typeof localStorage["customTheme"] == 'undefined') {localStorage["customTheme"] = JSON.stringify({})}
+
+const conif = {}
+const metaData = {
+    version: "v1.1",
+}
 
 let customBtns = []
 
 let pageLoad = (c) =>{ if (typeof c !== 'function') return; let a = new MutationObserver((mutationsList) => { let b = 0; for (const mutation of mutationsList) { if (mutation.type === 'childList' && b == 0) { mutation.addedNodes.forEach((node) => { if (node.nodeType === Node.ELEMENT_NODE) { b = 1; a.disconnect(); c(); } }); } } }); a.observe(findC("main"),{childList: true,subtree: true}) }
 const hexToHSL = (hex)=> { let r = 0, g = 0, b = 0; if (hex.length == 4) { r = "0x" + hex[1] + hex[1]; g = "0x" + hex[2] + hex[2]; b = "0x" + hex[3] + hex[3]; } else if (hex.length == 7) { r = "0x" + hex[1] + hex[2]; g = "0x" + hex[3] + hex[4]; b = "0x" + hex[5] + hex[6]; } r /= 255; g /= 255; b /= 255; let max = Math.max(r, g, b), min = Math.min(r, g, b); let h, s, l = (max + min) / 2; if (max == min) { h = s = 0; } else { let d = max - min; s = l > 0.5 ? d / (2 - max - min) : d / (max + min); switch (max) { case r: h = (g - b) / d + (g < b ? 6 : 0); break; case g: h = (b - r) / d + 2; break; case b: h = (r - g) / d + 4; break; } h /= 6; } h = Math.round(h * 360); s = Math.round(s * 100); l = Math.round(l * 100); return [h, s, l]; }
 const getPage = ()=>{return(window.location.hash).replace("#","")}
+const loggedIn = ()=>{return getLocalStore("token")?true:false}
 
 String.prototype.isHex = function(){
     let a = /([0-9a-f#]+)/.exec(this);
     return a[0].length == this.length;
 }
 
+const ArrayRemove = function(a=[],v){
+  const i = a.indexOf(v);
+  if (i > -1) { // only splice array when item is found
+      a.splice(i, 1); // 2nd parameter means remove one item only
+  }
+  return a;
+}
+
+const Twitchstore = {
+    get: async function(v){
+        let b = await sendRequest("GET","me");
+        b = JSON.parse(b[1]);
+        let r = b.user.Settings.Display["Embed Twitch Streams"] || {};
+        if (typeof v !== undefined && r[v]) {
+            r = r[v]
+        }
+        if (devMode) console.log(r,b)
+        return r;
+    },
+    set: async function(data={}){
+        let u = await this.get();
+        let s = account.Settings.Display;
+        let t = Object.keys(data)
+        for (i of t) {
+            u[i] = data[i]
+        }
+        s["Embed Twitch Streams"] = u;
+        let [c, r] = await sendRequest("POST", "me/settings", {
+           update: "display",
+           value: s
+        });
+        if (devMode) console.log(r)
+        return r;
+    },
+    remove: async function(v){
+        let s = account.Settings.Display;
+        let u = await this.get();
+        if (!u[v]) {return}
+        delete u[v]
+        s["Embed Twitch Streams"] = u;
+        let [c, r] = await sendRequest("POST", "me/settings", {
+           update: "display",
+           value: s
+        });
+        if (devMode) console.log(r)
+        return r;
+    }
+}
+
+function findQ(name) {
+    return document.querySelector(name);
+}
+
 let changeTheme = (s={})=>{
-    let a = JSON.parse(localStorage["customTheme"]);
+    let a = getTheme();
     let b = Object.keys(s);
     for (i in b) {
         let n = b[i];
@@ -22,8 +83,17 @@ let changeTheme = (s={})=>{
     localStorage["customTheme"] = JSON.stringify(a);
 }
 
-let getTheme = ()=>{
-    return JSON.parse(localStorage["customTheme"]);
+let getTheme = (t)=>{
+    let r = JSON.parse(localStorage["customTheme"])
+    if (t) {r=account.Settings.Display["Embed Twitch Streams"].CustomThemeData}
+    return r;
+}
+
+let updateTheme = async()=>{
+    let v = await Twitchstore.get("CustomThemeData");
+    localStorage["customTheme"] = JSON.stringify(v);
+    account.Settings.Display["Embed Twitch Streams"] = {CustomThemeData:v};
+    changeTheme(v.hex,v.mode)
 }
 
 if (localStorage["themeHex"]) {
@@ -71,9 +141,10 @@ let customTheme = (hex,light)=>{
 }
 
 const createButton = (n,i,s,p)=>{
+    let prem = findI("premium");
+    if (!prem) return;
     let nl = n.toLowerCase();
     let ele = document.createElement("button");
-    let prem = findI("premium");
     if (s !== null) {
         wireframes[nl] = ``
         pages[nl] = s;
@@ -82,6 +153,18 @@ const createButton = (n,i,s,p)=>{
     ele.innerHTML = `<div class="sidebarButtonImg">${i}</div>${n}`
     findI("sidebarButtons").insertBefore(ele,prem)
     customBtns.push(ele)
+}
+
+function createNotification({title,body,func,time}) {
+    const ele = createElement("totallyNotStolenNotificationBox","span",findC("sidebarNotifHolder"))
+    ele.id = Math.floor(Math.random()*999);
+    const txt = `<span style="font-weight: 700">${title}</span><br><span>${body}</span>`
+    const goAway = ()=>{ele.style.opacity = 0;ele.style.transform = "scale(1.1)";ele.style.cursor = "default";setTimeout(()=>{ele.remove()},400)}
+    ele.innerHTML = txt
+    setTimeout(()=>{ele.style.opacity = 1;ele.style.transform = "scale(1)";},16)
+    tempListen(ele,"click",function(e){goAway();if (typeof func == 'function' && !e.ctrlKey) func(ele)})
+    setTimeout(()=>{goAway()},time || 3500)
+    return ele;
 }
 
 let formatOptions = [
@@ -204,7 +287,118 @@ function addCodeToPage(page,c) {
     pc[page] = {code:v}
     pages.settings = ()=>{eval(pc[page]);settingsPage()}
 }
-  
+
+async function addonsCheck() {
+  let a = await Twitchstore.get("Addons");
+  if (a.CustomThemeData !== undefined) {
+    Twitchstore.set({Addons:[]})
+  }
+}
+
+const loadedAddons = [];
+
+class Addon {
+    constructor(id) {
+        loadedAddons.push({id:id,self:this})
+    }
+    createPopup({title,body,buttons}) {
+        showPopUp(title,body,(buttons || [["Okay", "grey", null]]))
+    }
+    createElement({name,type,parent,attribute}){
+        createElement(name,type,parent,attribute)
+    }
+    createNotification({title,body,func,time}){
+      createNotification({title,body,func,time})
+    }
+}
+
+class Format {
+    constructor({name, format, html}) {
+        formatOptions.push([format,html,name])
+        fe.ad(format,html)
+    }
+}
+
+async function getAddon(n) {
+    let r = await fetch(`https://siriclientstuff.glitch.me/addon?name=${n}`);
+    return await r.json()
+}
+
+const userCache = {"634d9def73acb4401e1b86ea":"Siri"}
+
+async function getUser(id) {
+  let r;
+  if (!Object.keys(userCache).includes(id)) {
+    r = await sendRequest("GET",`user?id=${d.author}`);
+    r = JSON.parse(r[1])
+  } else {
+    r = userCache[id]
+  }
+  return r;
+}
+
+async function initAddons() {
+    let a = await Twitchstore.get("Addons");
+
+    for (i in a) {
+        try {
+            let d = await getAddon(a[i]);
+            await loadScript(`https://siriclientstuff.glitch.me/plugins/${d._id}.js`)
+            let u = await getUser(d.author)
+            console.log(loadedAddons[i].self.init())
+            createNotification({title:`${d.name} Loaded!`,body:"Enjoy!",func:()=>{
+                showPopUp(
+                  `${d.name} <span style='font-size: 14px'>v${d.version}</span>`,
+                  `<div class="postTimestamp" style="margin: 2px 0 2px 0; font-size: 18px;">By ${JSON.parse(u[1]).User}</div>${d.description}`,
+                  [["Close", "grey", null]]
+                )
+            },time:5000})
+        } catch(e) {
+            console.log(e)
+        }
+    }
+}
+
+async function getAllAddons(){
+  let r = await fetch("https://siriclientstuff.glitch.me/addons");
+  return await r.json()
+}
+
+async function initCli(){
+  let n = createNotification({title:"Loading SiriClient...",body:"BetterBetterPhotop",time:Date.now()})
+  let i = setInterval(async()=>{
+      if (JSON.stringify(account) !== "{}") {
+          clearInterval(i)
+          const ArrayRandom = function (a=[]) { if (typeof a == 'object') return a[Math.floor((Math.random()*a.length))]; }
+          n.remove()
+          setTimeout(async()=>{
+              const loadMessages = [
+                "Life.. is Photop",
+                `You've logged in ${account.Logins} times.. Loser..`,
+                "We are NOT playing this again...",
+                "something funny",
+                "FEEDING MAG!",
+                "My name is richard and I'm sittin in a corner",
+                "Join dis <a href='https://discord.gg/S67wzquA'>https://discord.gg/S67wzquA</a>",
+                "Now with gambling!",
+                "Pwee Pudee!"
+              ]
+              let m = ArrayRandom(loadMessages);
+              createNotification({title:m,body:`Welcome to SiriClient ${metaData.version}!`,func:function(){
+                  showPopUp("Thanks Abooby","We love you Abooby! Muah 😘😍",[["Okay", "grey", null]])
+              }})
+              await addonsCheck();
+              await initAddons()
+          },100)
+          let t = getTheme(true)
+          customTheme(t.hex,t.mode)
+      }
+  })
+}
+
+initCli()
+
+
 createElement("","style",document.head).innerHTML = 
 `#spoiler {
     background-color: var(--themeColor);
@@ -245,6 +439,28 @@ option {
     background: var(--contentColor1);
 }
 
+.totallyNotStolenNotificationBox {
+	text-align:left;
+	display:block;
+	padding:4px 8px;
+	background:var(--contentColor2);
+	border-radius:10px;
+	font-size:16px;;
+	font-family:Roboto;
+	font-weight:300;
+	transition:opacity 0.2s, transform 0.2s;
+	user-select:none;
+	cursor:pointer;
+	width:100%;
+	max-width:182px;
+	max-height:200px;
+	margin-bottom:2px;
+	color:white;
+	transform:scale(0.9);
+	opacity:0;
+	overflow-wrap:anywhere;
+}
+
 `
 
 createButton("Messages",`<svg viewBox="0 0 256 256" fill="none" xmlns="http:www.w3.org/2000/svg">
@@ -254,20 +470,53 @@ createButton("Messages",`<svg viewBox="0 0 256 256" fill="none" xmlns="http:www.
               <path d="M16.2421 221.748L26.938 190.858C28.2619 187.035 33.3426 186.285 35.7141 189.564L48.6787 207.488C50.442 209.926 49.6687 213.357 47.0303 214.803L23.3698 227.769C19.3584 229.967 14.7455 226.071 16.2421 221.748Z" fill="var(--themeColor)"/>
             </svg>`,null)
 
-createButton("Client",`<svg viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg"> <path d="M126.5 149C138.374 149 148 139.374 148 127.5C148 115.626 138.374 106 126.5 106C114.626 106 105 115.626 105 127.5C105 139.374 114.626 149 126.5 149Z" fill="var(--themeColor)"></path> <path d="M101 64L108.972 12.846C109.048 12.3591 109.467 12 109.96 12H144.04C144.533 12 144.952 12.3591 145.028 12.846L153 64" stroke="var(--themeColor)" stroke-width="20"></path> <path d="M153 192L145.028 243.154C144.952 243.641 144.533 244 144.04 244H109.96C109.467 244 109.048 243.641 108.972 243.154L101 192" stroke="var(--themeColor)" stroke-width="20"></path> <path d="M84.5744 182.517L36.2877 201.19C35.8281 201.367 35.3074 201.184 35.061 200.757L18.0211 171.243C17.7747 170.816 17.876 170.274 18.2598 169.964L58.5744 137.483" stroke="var(--themeColor)" stroke-width="20"></path> <path d="M169.426 73.4833L217.712 54.8103C218.172 54.6326 218.693 54.8162 218.939 55.243L235.979 84.757C236.225 85.1838 236.124 85.7265 235.74 86.0357L195.426 118.517" stroke="var(--themeColor)" stroke-width="20"></path> <path d="M195.426 137.483L235.74 169.964C236.124 170.274 236.225 170.816 235.979 171.243L218.939 200.757C218.693 201.184 218.172 201.367 217.712 201.19L169.426 182.517" stroke="var(--themeColor)" stroke-width="20"></path> <path d="M58.5744 118.517L18.2598 86.0357C17.876 85.7265 17.7747 85.1838 18.0211 84.757L35.061 55.243C35.3074 54.8162 35.8281 54.6326 36.2877 54.8103L84.5744 73.4833" stroke="var(--themeColor)" stroke-width="20"></path> <path d="M194 128C194 165.003 164.003 195 127 195C89.9969 195 60 165.003 60 128C60 90.9969 89.9969 61 127 61C164.003 61 194 90.9969 194 128Z" stroke="var(--themeColor)" stroke-width="20"></path> </svg>`,()=>{alert("hi")})
+createButton("Addons",`<svg xmlns="http://www.w3.org/2000/svg" style="margin:-2px 0px 0px -1px" width="35px" height="35px" viewBox="0 -960 960 960" fill="var(--themeColor)"><path d="M344.15-122H188q-27.57 0-46.79-19.21Q122-160.43 122-188v-144.15q39.15-10 62.58-43.81Q208-409.77 208-452q0-42.23-23.42-76.04-23.43-33.81-62.58-43.81V-718q0-27.57 19.21-46.79Q160.43-784 188-784h150q10.77-40.31 42.35-65.85 31.57-25.54 71.65-25.54 40.08 0 71.65 25.54Q555.23-824.31 566-784h152q27.57 0 46.79 19.21Q784-745.57 784-718v152q40.31 10.77 65.85 42.35 25.54 31.57 25.54 71.65 0 40.08-25.54 71.65Q824.31-348.77 784-338v150q0 27.57-19.21 46.79Q745.57-122 718-122H559.85q-4.77-45.15-35.81-75.58Q493-228 452-228q-41 0-72.04 30.42-31.04 30.43-35.81 75.58ZM188-188h102.92q17.08-39.85 57.77-72.92Q389.38-294 452-294q62.62 0 104.31 33.08Q598-227.85 615.08-188H718v-199.38h34.46q28.77-4.62 42.85-23.7 14.07-19.07 14.07-40.92t-14.07-40.92q-14.08-19.08-42.85-23.7H718V-718H516.62v-34.46q-4.62-28.77-23.7-42.85-19.07-14.07-40.92-14.07t-40.92 14.07q-19.08 14.08-23.7 42.85V-718H188v101.08q39.08 31.69 62.54 74.27Q274-500.08 274-452q0 49.15-23.46 91.08Q227.08-319 188-289.08V-188Zm264-264Z"/></svg>`,)
 
-decideProfilePic({})
+let addonsLogic = async function(e){
+  let a = await Twitchstore.get("Addons")
+  let state = e.innerText == "Enable";
+  let addon = e.id;
 
-pages.client = ()=>{
+  if (state) {
+    a.push(addon)
+  } else {
+    ArrayRemove(a,addon)
+  }
+
+  console.log(state,addon,a)
+
+  Twitchstore.set({Addons:a})
+
+  e.innerText = (state ? "Disable" : "Enable")
+}
+
+pages.addons = async ()=>{
     let ph = findC("pageHolder")
     let header = createElement("","h1",ph)
-    header.innerText = "SiriClient™ V1 😂"
-    header.style.fontSize = "75px"
+    header.innerText = `Addons`
+    header.style.fontSize = "65px"
     header.style.textAlign = "center"
+
+    let p = createElement("","p",ph)
+    p.innerText = "(Refresh the page for changes to take affect)"
+    p.style.textAlign = "center"
     
-    let n = createElement("","p",ph)
-    n.innerText = "there's nun 😔"
-    n.style.textAlign = "center"
+    let addons = await getAllAddons()
+
+    // let n = createElement("","p",ph)
+    // n.innerText = JSON.stringify(addons)
+    // n.style.textAlign = "center"
+    //`<div class="settingsSection"><h3 style="margin: 0;">Abooby's Emojis <span style="font-size: 14px">v1.0</span></h3><div class="postTimestamp" style="margin: 2px 0 2px 0;">By Siri</div>A port of Aboobys Emoji plugin for SiriClient. <br><button class="settingsButton">Enable</button></div>`
+    let aData = await Twitchstore.get("Addons")
+    for (i in addons) {
+      let ia = addons[i];
+      let u = await getUser(ia.author)
+      let div = createElement("settingsSection","div",ph)
+      div.style.textAlign = "center"
+      div.style.margin = "auto"
+      div.style.marginTop = "5px"
+      div.innerHTML = `<h3 style="margin: 0;">${ia.name} <span style="font-size: 14px">v${ia.version}</span></h3><div class="postTimestamp" style="margin: 2px 0 2px 0;">By ${u}</div>${ia.description}<br><button id="${ia.nid}" onclick="addonsLogic(this)" class="settingsButton">${aData.includes(ia.nid) ? "Disable" : "Enable"}</button></div>`
+    }
     
     //<h1 style="font-size: 100px;text-align: center;">hi</h1>
     // const settingSections = []
@@ -378,6 +627,23 @@ async function setPage(name) {
             themes.push(["/section","Client"]);
             themes.push(["Custom","var(--contentColor2)"]);
         }
+
+        let repeat = false;
+        let f = ()=>{pageLoad(()=>{
+            if (findI("EmbedTwitchStreams")) {
+                findI("EmbedTwitchStreams").remove()
+                document.querySelector("label[for='EmbedTwitchStreams']").remove()
+
+                let t = createElement("","i",findI("dispSelector"))
+                t.innerText = 'The option "Embed Twitch Streams" was removed due to potential Data Corruption. This option is still enabled, though.'
+                t.style.fontSize = "12px"
+                findI("EmbedGIFs").parentElement.style.marginBottom = "5px"
+            }
+    
+            f()
+        })}
+
+        f()
         
         function addThemeOption(index) {
             const cto = ()=>{
@@ -395,7 +661,7 @@ async function setPage(name) {
               n.style.width = "80%"
               p = createElement("","option",findI(d_id)).innerText = "Dark"
               q = createElement("","option",findI(d_id)).innerText = "Light"
-              //findI(d_id).value
+              n.value = (getTheme().mode ? "Light" : "Dark");
         
               n = createElement("settingsButton","button",findC("tempDiv"));
               n.innerText = "Save";
@@ -406,6 +672,7 @@ async function setPage(name) {
                 let c = (findI(d_id).value == "Light" ? true : false);
                 customTheme(tInputVal,c)
                 changeTheme({hex:tInputVal,mode:c})
+                Twitchstore.set({CustomThemeData:{hex:tInputVal,mode:c}})
               }
             }
             
@@ -482,7 +749,14 @@ function updateDisplay(type) {
   setCSSVar("--sidebarBG", isMobile ? "var(--pageColor)" : "transparent");
   switch (type) {
     case "Custom":
-      customTheme(getTheme().hex,getTheme().mode)
+        if (!(getTheme() && account.Settings.Display["Embed Twitch Streams"].CustomThemeData)) return;
+        if (account.Settings.Display["Embed Twitch Streams"].CustomThemeData !== getTheme()){
+            updateTheme()
+            let t = getTheme(true)
+            customTheme(t.hex,t.mode)
+        } else {
+            customTheme(getTheme().hex,getTheme().mode)
+        }
       break;
     case "Light":
       setCSSVar("--leftSidebarColor", "#E8E8E8");
@@ -747,4 +1021,12 @@ function updateDisplay(type) {
       particleInt = setInterval(createParticle, 1000);
       break;
   }
+}
+
+async function auth() {
+    let [code, response] = await sendRequest("GET", "me?ss=" + socket.secureID);
+    if (code != 200) {
+      return;
+    }
+    updateToSignedIn(response);
 }
