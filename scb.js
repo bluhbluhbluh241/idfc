@@ -507,7 +507,8 @@ pages.addons = async ()=>{
     // n.innerText = JSON.stringify(addons)
     // n.style.textAlign = "center"
     //`<div class="settingsSection"><h3 style="margin: 0;">Abooby's Emojis <span style="font-size: 14px">v1.0</span></h3><div class="postTimestamp" style="margin: 2px 0 2px 0;">By Siri</div>A port of Aboobys Emoji plugin for SiriClient. <br><button class="settingsButton">Enable</button></div>`
-    let aData = await Twitchstore.get("Addons")
+    let aData = (await Twitchstore.get("Addons"))
+    if (aData[0] = [0]) {Twitchstore.set({Addons:[]});aData = []}
     for (i in addons) {
       let ia = addons[i];
       let u = await getUser(ia.author)
